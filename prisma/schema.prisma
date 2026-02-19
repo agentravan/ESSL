@@ -1,0 +1,263 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------------------------------------------
+// USER & AUTHENTICATION
+// --------------------------------------------------------
+
+enum Role {
+  SUPER_ADMIN
+  HR_ADMIN
+  PAYROLL_ADMIN
+  MANAGER
+  EMPLOYEE
+  AUDITOR
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String // Hashed
+  role          Role      @default(EMPLOYEE)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Profile Link
+  employee      Employee?
+
+  // Audit Logs
+  audits        AuditLog[]
+
+  // Payroll Locks
+  lockedBatches AttendanceLedger[] @relation("BatchLocker")
+}
+
+// --------------------------------------------------------
+// MASTER DATA
+// --------------------------------------------------------
+
+model Department {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  code      String     @unique
+  employees Employee[]
+}
+
+model Location {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  address   String?
+  employees Employee[]
+}
+
+model ShiftMaster {
+  id                String   @id @default(uuid())
+  name              String   @unique
+  startTime         DateTime // Store as time only (1970-01-01 T...)
+  endTime           DateTime
+  lateGraceMinutes  Int      @default(15)
+  earlyExitGrace    Int      @default(15)
+  halfDayThreshold  Int      @default(240) // Minutes
+  fullDayThreshold  Int      @default(480) // Minutes
+  otThreshold       Int      @default(60)  // Minutes to quality for OT
+  isNightShift      Boolean  @default(false)
+  
+  employees         Employee[]
+  attendanceLedgers AttendanceLedger[]
+}
+
+model PolicyVersion {
+  id          String   @id @default(uuid())
+  policyName  String
+  version     Int
+  effectiveFrom DateTime
+  rules       Json     // Store intricate rules deeply
+  createdAt   DateTime @default(now())
+}
+
+model Holiday {
+  id        String   @id @default(uuid())
+  date      DateTime @unique
+  name      String
+  isOptional Boolean @default(false)
+}
+
+// --------------------------------------------------------
+// EMPLOYEE PROFILE
+// --------------------------------------------------------
+
+model Employee {
+  id            String   @id @default(uuid())
+  user          User     @relation(fields: [userId], references: [id])
+  userId        String   @unique
+  
+  empCode       String   @unique
+  firstName     String
+  lastName      String
+  designation   String
+  
+  department    Department @relation(fields: [departmentId], references: [id])
+  departmentId  String
+  
+  location      Location   @relation(fields: [locationId], references: [id])
+  locationId    String
+  
+  shift         ShiftMaster @relation(fields: [shiftId], references: [id])
+  shiftId       String
+
+  manager       Employee?  @relation("ManagerTeam", fields: [managerId], references: [id])
+  managerId     String?
+  team          Employee[] @relation("ManagerTeam")
+  
+  joiningDate   DateTime
+  
+  // Relations
+  attendance    AttendanceLedger[]
+  leaveBalance  LeaveLedger[]
+  leaveRequests LeaveRequest[]
+}
+
+// --------------------------------------------------------
+// ATTENDANCE CORE (IMMUTABLE LEDGER)
+// --------------------------------------------------------
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+  WEEKLY_OFF
+  HOLIDAY
+  LWP
+}
+
+enum AttendanceFlag {
+  NORMAL
+  MISSING_PUNCH
+  MANUAL_OVERRIDE
+  AUTO_CORRECTED
+}
+
+model AttendanceLedger {
+  id                String           @id @default(uuid())
+  employee          Employee         @relation(fields: [employeeId], references: [id])
+  employeeId        String
+  
+  date              DateTime         // The specific date of attendance
+  shift             ShiftMaster      @relation(fields: [shiftId], references: [id])
+  shiftId           String
+  
+  // Punch Details
+  punchIn           DateTime?
+  punchOut          DateTime?
+  
+  // Calculated Metrics
+  status            AttendanceStatus
+  flag              AttendanceFlag   @default(NORMAL)
+  
+  lateMinutes       Int              @default(0)
+  earlyExitMinutes  Int              @default(0)
+  otMinutes         Int              @default(0)
+  workMinutes       Int              @default(0)
+  
+  // Ledger Immutability & Versioning
+  version           Int              @default(1)
+  isActive          Boolean          @default(true) // Only one active per day per emp
+  processedAt       DateTime         @default(now())
+  batchId           String?          
+  
+  // Payroll Lock
+  isLocked          Boolean          @default(false)
+  lockedBy          User?            @relation("BatchLocker", fields: [lockedById], references: [id])
+  lockedById        String?
+  lockedAt          DateTime?
+
+  @@index([employeeId, date, isActive]) // Critical index for dashboard speed
+  @@index([date, status])
+}
+
+// --------------------------------------------------------
+// LEAVE ENGINE
+// --------------------------------------------------------
+
+enum LeaveType {
+  CL // Casual Leave
+  SL // Sick Leave
+  EL // Earned Leave
+  COMP_OFF
+  LWP // Leave Without Pay
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model LeaveLedger {
+  id            String    @id @default(uuid())
+  employee      Employee  @relation(fields: [employeeId], references: [id])
+  employeeId    String
+  
+  leaveType     LeaveType
+  year          Int
+  
+  openingBalance Float    @default(0)
+  accrued        Float    @default(0)
+  used           Float    @default(0)
+  closingBalance Float    @default(0) // Calculated: Open + Accrued - Used
+  
+  lastAccrualDate DateTime?
+  
+  @@unique([employeeId, leaveType, year])
+}
+
+model LeaveRequest {
+  id          String      @id @default(uuid())
+  employee    Employee    @relation(fields: [employeeId], references: [id])
+  employeeId  String
+  
+  leaveType   LeaveType
+  startDate   DateTime
+  endDate     DateTime
+  daysCount   Float
+  reason      String
+  
+  status      LeaveStatus @default(PENDING)
+  
+  approvedBy  String?     // Manager/HR ID
+  approvedAt  DateTime?
+  rejectionReason String?
+  
+  createdAt   DateTime    @default(now())
+}
+
+// --------------------------------------------------------
+// AUDIT LOGGING
+// --------------------------------------------------------
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String   // CREATE, UPDATE, DELETE, LOCK, PROCESS
+  entity      String   // Table Name
+  entityId    String
+  
+  performedBy User?    @relation(fields: [userId], references: [id])
+  userId      String?
+  
+  timestamp   DateTime @default(now())
+  
+  oldValue    Json?    // Store full previous state if update
+  newValue    Json?    // Store new state
+  
+  ipAddress   String?
+  userAgent   String?
+}
