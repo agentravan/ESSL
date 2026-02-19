@@ -43,8 +43,11 @@ export function Sidebar() {
 
     return (
         <div className="flex h-full w-64 flex-col bg-slate-900 text-white">
-            <div className="flex h-16 items-center justify-center border-b border-slate-800">
-                <h1 className="text-xl font-bold tracking-tight">ESSL <span className="text-blue-400">Next</span></h1>
+            <div className="flex h-16 items-center justify-center border-b border-slate-800 bg-slate-950">
+                <div className="flex flex-col items-center">
+                    <h1 className="text-xl font-bold tracking-wider text-blue-400">ALLIED MEDICAL</h1>
+                    <span className="text-[10px] text-slate-500 tracking-[0.2em] uppercase">Control Panel</span>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto py-4">

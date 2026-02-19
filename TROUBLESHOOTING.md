@@ -19,17 +19,17 @@ The automated setup encountered an issue generating the Prisma Client, likely du
 
 2. **Run Generation Manually**
    Open a terminal in the project root and run:
+   ```
+
+2. **Run Generation Manually** (IMPORTANT)
+   Since the automated process failed, run this in your terminal:
    ```powershell
    npx prisma generate
-   ```
-
-3. **Database Migration**
-   Once generation succeeds, push the schema to your database:
-   ```powershell
    npx prisma db push
    ```
+   *This creates the tables in your NeonDB.*
 
-4. **Seeding Data**
+3. **Seeding Data**
    Populate the master tables:
    ```powershell
    npx prisma db seed

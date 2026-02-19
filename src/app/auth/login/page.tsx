@@ -43,10 +43,10 @@ export default function LoginPage() {
                         </div>
                     </div>
                     <CardTitle className="text-2xl font-bold tracking-tight text-slate-900">
-                        Welcome Back
+                        Allied Medical Limited
                     </CardTitle>
                     <CardDescription className="text-slate-500">
-                        Enter your credentials to access the portal
+                        Attendance & Leave Control Panel
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -82,7 +82,7 @@ export default function LoginPage() {
                 </CardContent>
                 <CardFooter className="justify-center border-t p-4">
                     <p className="text-xs text-slate-400">
-                        Secure Internal System • ESSL v2.0
+                        Internal HR System | Confidential • Allied Medical
                     </p>
                 </CardFooter>
             </Card>
