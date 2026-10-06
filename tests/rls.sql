@@ -101,7 +101,8 @@ select pg_temp.expect('alpha hr: salary structures', (select count(*) from salar
 select pg_temp.expect('alpha hr: runs (locked only)', (select count(*) from payroll_runs), 1);
 select pg_temp.expect('alpha hr: lines (locked only)', (select count(*) from payroll_lines), 2);
 select pg_temp.expect('alpha hr: documents', (select count(*) from documents), 3);
-select pg_temp.expect('alpha hr: templates', (select count(*) from letter_templates), 2);
+select pg_temp.expect('alpha hr: templates (4 standard + shared + own)', (select count(*) from letter_templates), 6);
+select pg_temp.expect('alpha hr: no beta templates', (select count(*) from letter_templates where name = 'Beta only'), 0);
 select pg_temp.expect('alpha hr: users', (select count(*) from users), 1);
 select pg_temp.expect('alpha hr: rules hidden', (select count(*) from statutory_rules), 0);
 select pg_temp.must_fail('alpha hr: edit an employee', $$update employees set full_name = 'Hacked'$$);
@@ -127,7 +128,8 @@ select pg_temp.expect('beta hr: employees', (select count(*) from employees), 1)
 select pg_temp.expect('beta hr: alpha employees', (select count(*) from employees where emp_code like 'A%'), 0);
 select pg_temp.expect('beta hr: lines', (select count(*) from payroll_lines), 1);
 select pg_temp.expect('beta hr: documents', (select count(*) from documents), 1);
-select pg_temp.expect('beta hr: templates', (select count(*) from letter_templates), 2);
+select pg_temp.expect('beta hr: templates (4 standard + shared + own)', (select count(*) from letter_templates), 6);
+select pg_temp.expect('beta hr: no alpha templates', (select count(*) from letter_templates where name = 'Alpha only'), 0);
 commit;
 
 -- ---------------------------------------------------------------- employee (Asha, Alpha)
@@ -153,8 +155,6 @@ commit;
 begin;
 select pg_temp.expect('lookup by email works without a session',
   (select count(*) from auth_user_by_email('  HR@Alpha.local ')), 1);
-select pg_temp.must_fail('bootstrap refused once users exist',
-  $$select auth_bootstrap_admin('evil@x.y', 'Evil', 'h')$$);
 select auth_create_session('10000000-0000-0000-0000-00000000000a', 'tokhash', 12);
 select pg_temp.expect('session resolves to its user',
   (select count(*) from auth_session_user('tokhash') where email = 'hr@alpha.local'), 1);

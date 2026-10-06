@@ -39,27 +39,6 @@ language sql stable security definer set search_path = hrms, pg_temp as $$
 $$;
 
 -- ---------------------------------------------------------------- login (no user context yet)
-create function auth_user_count() returns bigint
-language sql stable security definer set search_path = hrms, pg_temp as $$
-  select count(*) from users
-$$;
-
--- First-run only: creates the first administrator when no user exists at all.
-create function auth_bootstrap_admin(p_email text, p_name text, p_hash text) returns uuid
-language plpgsql security definer set search_path = hrms, pg_temp as $$
-declare v_id uuid;
-begin
-  lock table users in share row exclusive mode;
-  if exists (select 1 from users) then
-    raise exception 'setup already completed';
-  end if;
-  insert into users (email, full_name, password_hash, role, must_change_password)
-  values (lower(trim(p_email)), p_name, p_hash, 'firm_admin', false)
-  returning id into v_id;
-  insert into audit_log (user_id, action, entity, entity_id) values (v_id, 'setup.first_admin', 'user', v_id::text);
-  return v_id;
-end $$;
-
 create function auth_user_by_email(p_email text)
 returns table (id uuid, password_hash text, active boolean, locked_until timestamptz)
 language sql stable security definer set search_path = hrms, pg_temp as $$
@@ -209,7 +188,7 @@ grant select on audit_log to hrms_app;
 
 grant execute on function
   uid(), my_role(), my_client(), my_employee(), is_firm(), is_admin(),
-  auth_user_count(), auth_bootstrap_admin(text, text, text), auth_user_by_email(text),
+  auth_user_by_email(text),
   auth_login_result(uuid, boolean), auth_create_session(uuid, text, int),
   auth_session_user(text), auth_delete_session(text), auth_set_password(uuid, text, boolean),
   auth_my_hash(), audit(text, text, text, uuid, jsonb)

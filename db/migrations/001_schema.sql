@@ -225,6 +225,7 @@ create table documents (
   ref_no              text not null default '',
   template_id         uuid references letter_templates(id) on delete set null,
   body                text not null,         -- final text with every placeholder filled in
+  data                jsonb not null default '{}', -- figures frozen when the letter was made (salary table rows)
   letter_date         date not null default current_date,
   visible_to_employee boolean not null default false,
   created_by          uuid,
