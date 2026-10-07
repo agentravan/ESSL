@@ -36,7 +36,7 @@ async function signIn(page, email, password) {
 // Form actions navigate without a full page load, so wait for the new screen to finish drawing.
 const settle = async (page) => { await page.waitForLoadState('networkidle'); await page.waitForTimeout(150); };
 const text = async (page) => { await settle(page); return page.locator('body').innerText(); };
-const overflowing = (page) => page.evaluate(() => [...document.querySelectorAll('body *')].filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1 && !el.closest('.overflow-x-auto')).slice(0, 4).map((el) => `${el.tagName}.${String(el.className).slice(0, 60)}`).join(' | '));
+const overflowing = (page) => page.evaluate(() => [...document.querySelectorAll('body *')].filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1 && !el.parentElement?.closest('.overflow-x-auto')).slice(0, 4).map((el) => `${el.tagName}.${String(el.className).slice(0, 60)}`).join(' | '));
 const noSideScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 const north = seed.clientIds.NORTH;
 const sunrise = seed.clientIds.SUNR;
@@ -107,7 +107,7 @@ await step('administrator', async () => {
   await page.fill('input[name=amount]', '1000');
   await Promise.all([page.waitForURL(/msg=/), page.click('button:has-text("Add")')]);
   t = await text(page);
-  check('adding a bonus of 1,000 raises net pay to 42,386', t.includes('42,386') && t.includes('Festival bonus'));
+  check('adding a bonus of 1,000 raises net pay to 42,386', t.includes('42,386') && t.includes('Festival bonus'), `${page.url().slice(-80)} :: ${(t.match(/Net pay[^\n]*\n?[^\n]*/) ?? [''])[0]}`);
 
   // ---- new client, employee, attendance, payroll, lock
   await page.goto(`${BASE}/clients/new`);
