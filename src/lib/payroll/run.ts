@@ -233,7 +233,11 @@ export async function computeRun(sql: Sql, userId: string, clientId: string, per
     );
   }
 
-  await sql('delete from payroll_lines where run_id = $1', [runId]);
+  // Lines keep their identity across recalculations, so links to a payslip or a working page stay valid.
+  await sql('delete from payroll_lines where run_id = $1 and not (employee_id = any($2::uuid[]))', [
+    runId,
+    lines.map((l) => l.employee_id as string),
+  ]);
   if (lines.length > 0) {
     await sql(
       `insert into payroll_lines (run_id, client_id, employee_id, emp, calc, paid_days, gross_full, gross_earned, taxable_earned,
@@ -242,7 +246,13 @@ export async function computeRun(sql: Sql, userId: string, clientId: string, per
               x.pf_employee, x.esi_employee, x.pt, x.tds, x.other_deductions, x.total_deductions, x.net_pay, x.employer_pf, x.employer_esi
          from jsonb_to_recordset($3::jsonb) as x(employee_id uuid, emp jsonb, calc jsonb, paid_days numeric, gross_full numeric,
               gross_earned numeric, taxable_earned numeric, pf_employee numeric, esi_employee numeric, pt numeric, tds numeric,
-              other_deductions numeric, total_deductions numeric, net_pay numeric, employer_pf numeric, employer_esi numeric)`,
+              other_deductions numeric, total_deductions numeric, net_pay numeric, employer_pf numeric, employer_esi numeric)
+       on conflict (run_id, employee_id) do update set
+         emp = excluded.emp, calc = excluded.calc, paid_days = excluded.paid_days, gross_full = excluded.gross_full,
+         gross_earned = excluded.gross_earned, taxable_earned = excluded.taxable_earned, pf_employee = excluded.pf_employee,
+         esi_employee = excluded.esi_employee, pt = excluded.pt, tds = excluded.tds, other_deductions = excluded.other_deductions,
+         total_deductions = excluded.total_deductions, net_pay = excluded.net_pay, employer_pf = excluded.employer_pf,
+         employer_esi = excluded.employer_esi`,
       [runId, clientId, JSON.stringify(lines)],
     );
   }
