@@ -31,8 +31,12 @@ async function signIn(page, email, password) {
   await page.fill('input[name=email]', email);
   await page.fill('input[name=password]', password);
   await Promise.all([page.waitForURL((u) => !u.pathname.startsWith('/login') || u.search.includes('err=')), page.click('button[type=submit]')]);
+  await settle(page);
 }
-const text = (page) => page.locator('body').innerText();
+// Form actions navigate without a full page load, so wait for the new screen to finish drawing.
+const settle = async (page) => { await page.waitForLoadState('networkidle'); await page.waitForTimeout(150); };
+const text = async (page) => { await settle(page); return page.locator('body').innerText(); };
+const overflowing = (page) => page.evaluate(() => [...document.querySelectorAll('body *')].filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1 && !el.closest('.overflow-x-auto')).slice(0, 4).map((el) => `${el.tagName}.${String(el.className).slice(0, 60)}`).join(' | '));
 const noSideScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 const north = seed.clientIds.NORTH;
 const sunrise = seed.clientIds.SUNR;
@@ -204,6 +208,7 @@ await step('new client HR', async () => {
   await signIn(page, 'hr.e2e@sample.invalid', hrTempPassword);
   check('temporary password forces a password change', new URL(page.url()).pathname === '/account');
   await page.goto(`${BASE}/c/${e2eClient}/employees`);
+  await settle(page);
   check('pages stay closed until the password is changed', new URL(page.url()).pathname === '/account');
   await page.fill('input[name=current]', hrTempPassword);
   await page.fill('input[name=next]', 'a-brand-new-password-1');
@@ -285,9 +290,10 @@ await step('office staff', async () => {
   await page.goto(`${BASE}/audit`);
   check('staff cannot open the activity log', new URL(page.url()).pathname === '/clients');
   await page.goto(`${BASE}/rules`);
-  check('staff can read rules but not add them', (await text(page)).includes('Provident fund') && !(await text(page)).includes('Add rule'));
+  check('staff can read rules but not add them', /provident fund/i.test(await text(page)) && !(await text(page)).includes('Add rule'));
   await page.goto(`${BASE}/c/${e2eClient}/payroll`);
   await page.click('a:has-text("October 2026")');
+  await page.waitForURL(/\/payroll\/[0-9a-f-]{36}$/);
   check('staff cannot unlock a locked month', (await text(page)).includes('Only an administrator can unlock'));
   await context.close();
 });
@@ -299,7 +305,8 @@ await step('phone layout', async () => {
   await signIn(page, a.email, a.password);
   for (const [name, path] of [['clients', '/clients'], ['overview', `/c/${north}`], ['payroll', `/c/${north}/payroll/${northOctRun}`], ['employee form', `/c/${north}/employees/new`]]) {
     await page.goto(`${BASE}${path}`);
-    check(`${name} fits a phone screen`, await noSideScroll(page));
+    await settle(page);
+    check(`${name} fits a phone screen`, await noSideScroll(page), await overflowing(page));
   }
   await page.screenshot({ path: `${OUT}10-payroll-phone.png`, fullPage: true });
   await context.close();
