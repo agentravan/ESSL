@@ -374,15 +374,15 @@ await step('modules', async () => {
   const grievanceId = page.url().split('/').pop().split('?')[0];
   await page.fill('#c_body', 'Internal: checked with accounts, claim is in the next batch.');
   await page.check('input[name=internal]');
-  await page.click('button:has-text("Add")');
+  await page.click('form:has(#c_body) button[type=submit]');
   t = await text(page);
   check('internal note is saved', t.includes('Internal note saved') && t.includes('checked with accounts'));
   await page.selectOption('#u_status', 'resolved');
-  await page.click('button:has-text("Save")');
+  await page.click('form:has(#u_status) button[type=submit]');
   check('resolving needs a written resolution', (await text(page)).includes('Write what was decided'));
   await page.selectOption('#u_status', 'resolved');
   await page.fill('#u_resolution', 'Claim approved. It will be paid with this month salary.');
-  await page.click('button:has-text("Save")');
+  await page.click('form:has(#u_status) button[type=submit]');
   t = await text(page);
   check('concern can be resolved', t.includes('Saved') && /resolved/i.test(t));
   const pdf = await page.request.get(`${BASE}/api/grievance/${grievanceId}`);
