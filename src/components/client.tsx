@@ -39,8 +39,23 @@ export function SubmitButton({ children, pendingText = 'Saving…', className = 
   value?: string;
 }) {
   const { pending } = useFormStatus();
+  // A form with two buttons (Approve / Reject) needs to say which one was pressed.
+  // The choice travels in a hidden field filled in at the moment of the click,
+  // which does not depend on the browser sending the pressed button's own value.
+  const choose = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!name) return;
+    const form = e.currentTarget.form;
+    if (!form) return;
+    form.querySelectorAll<HTMLInputElement>('input[data-choice]').forEach((el) => el.remove());
+    const field = document.createElement('input');
+    field.type = 'hidden';
+    field.name = name;
+    field.value = value ?? '';
+    field.setAttribute('data-choice', '');
+    form.appendChild(field);
+  };
   return (
-    <button type="submit" className={className} disabled={pending} name={name} value={value}>
+    <button type="submit" className={className} disabled={pending} onClick={choose}>
       {pending ? pendingText : children}
     </button>
   );
