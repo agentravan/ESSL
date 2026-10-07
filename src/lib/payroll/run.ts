@@ -4,6 +4,7 @@ import { UserError, type Sql } from '../db';
 import { computePayroll } from './calc';
 import { financialYear, firstDay, fyStart, isPeriod, lastDay, periodLabel } from './period';
 import { loadRules } from './rules';
+import { unpaidLeaveDays } from '../leave-db';
 import { COMPONENT_KEYS, type Adjustment, type Components, type DayBasis, type PayrollResult, type PfWageRule } from './types';
 
 export interface RunTotals {
@@ -112,6 +113,8 @@ export async function computeRun(sql: Sql, userId: string, clientId: string, per
     [clientId, start],
   );
   const lopOf = new Map(attendance.map((a) => [a.employee_id, a.lop_days]));
+  // Where nobody has saved attendance for an employee, approved unpaid leave is used as the unpaid days.
+  const unpaidLeave = await unpaidLeaveDays(sql, clientId, period);
   const adjRows = await sql<Adjustment & { employee_id: string }>(
     'select employee_id, kind, label, amount, taxable from payroll_adjustments where client_id = $1 and period = $2 order by created_at',
     [clientId, start],
@@ -171,7 +174,7 @@ export async function computeRun(sql: Sql, userId: string, clientId: string, per
         tdsOverrideMonthly: e.tds_override_monthly,
       },
       structure,
-      lopDays: lopOf.get(e.id) ?? 0,
+      lopDays: lopOf.get(e.id) ?? unpaidLeave.get(e.id) ?? 0,
       adjustments,
       ytd: {
         taxablePaid: (y?.taxable ?? 0) + (opening ? e.opening_taxable_ytd : 0),

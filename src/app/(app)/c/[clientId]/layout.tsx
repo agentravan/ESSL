@@ -14,8 +14,11 @@ export default async function ClientLayout({ children, params }: { children: Rea
     { href: base, label: 'Overview', exact: true },
     { href: `${base}/employees`, label: 'Employees' },
     { href: `${base}/attendance`, label: 'Attendance' },
+    { href: `${base}/leave`, label: 'Leave' },
     { href: `${base}/payroll`, label: 'Payroll' },
     { href: `${base}/letters`, label: 'Letters' },
+    { href: `${base}/documents`, label: 'Documents' },
+    { href: `${base}/grievances`, label: 'Grievances' },
   ];
   if (isFirm(user)) tabs.push({ href: `${base}/settings`, label: 'Settings' });
   return (

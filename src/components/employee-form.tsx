@@ -5,10 +5,11 @@ import { STATES } from '@/lib/states';
 import { Card, CheckField, SelectField, TextField } from './ui';
 import { SubmitButton } from './client';
 
-export function EmployeeForm({ clientId, clientState, employee, action }: {
+export function EmployeeForm({ clientId, clientState, employee, action, managers }: {
   clientId: string;
   clientState: string;
   employee?: Employee;
+  managers: { id: string; emp_code: string; full_name: string }[];
   action: (form: FormData) => Promise<void>;
 }) {
   const e = employee;
@@ -37,6 +38,13 @@ export function EmployeeForm({ clientId, clientState, employee, action }: {
           <TextField label="Work location" name="location" defaultValue={e?.location} maxLength={80} />
           <SelectField label="Work state" name="work_state" defaultValue={e?.work_state ?? clientState} options={STATES.map((s) => ({ value: s.code, label: s.name }))} hint="Decides professional tax." />
           <SelectField label="Status" name="status" defaultValue={e?.status ?? 'active'} options={Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label }))} />
+          <SelectField
+            label="Reports to"
+            name="manager_id"
+            defaultValue={e?.manager_id ?? ''}
+            options={[{ value: '', label: 'Nobody (HR approves leave)' }, ...managers.filter((m) => m.id !== e?.id).map((m) => ({ value: m.id, label: `${m.emp_code} · ${m.full_name}` }))]}
+            hint="This person approves their leave."
+          />
           <TextField label="Last working day" name="exit_date" type="date" defaultValue={e?.exit_date ?? ''} hint="Only for people who have left or are leaving." />
         </div>
       </Card>

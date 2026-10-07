@@ -21,6 +21,15 @@ export interface Client {
   pf_wage_rule: 'basic_da' | 'fifty_percent' | null;
   day_basis: 'calendar' | 'fixed26' | 'fixed30';
   active: boolean;
+  is_demo: boolean;
+  industry: string;
+  weekly_off: number[];
+  shift_start: string;
+  shift_end: string;
+  grace_minutes: number;
+  office_lat: number | null;
+  office_lng: number | null;
+  office_radius_m: number | null;
 }
 
 const load = cache(async (user: SessionUser, clientId: string): Promise<Client | null> => {

@@ -21,11 +21,12 @@ export default async function EditEmployeePage({ params, searchParams }: {
     sql.one<Employee>(`select ${EMPLOYEE_COLUMNS} from employees where id = $1 and client_id = $2`, [empId, client.id]),
   );
   if (!employee) notFound();
+  const managers = await as(user, (sql) => sql<{ id: string; emp_code: string; full_name: string }>("select id, emp_code, full_name from employees where client_id = $1 and status <> 'exited' order by emp_code", [client.id]));
   return (
     <div className="max-w-4xl">
       <PageHeader title={`Edit ${employee.full_name}`} back={{ href: `/c/${client.id}/employees/${employee.id}`, label: employee.full_name }} />
       <Flash params={await searchParams} />
-      <EmployeeForm clientId={client.id} clientState={client.state} employee={employee} action={updateEmployeeAction} />
+      <EmployeeForm clientId={client.id} clientState={client.state} employee={employee} action={updateEmployeeAction} managers={managers} />
     </div>
   );
 }

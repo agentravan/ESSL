@@ -86,6 +86,15 @@ export async function requireClientAccess(clientId: string): Promise<SessionUser
   redirect(homeFor(user));
 }
 
+export type EmployeeUser = SessionUser & { clientId: string; employeeId: string };
+
+/** An employee login. Everyone else is sent to their own start page. */
+export async function requireEmployee(): Promise<EmployeeUser> {
+  const user = await requireUser();
+  if (user.role !== 'employee' || !user.employeeId || !user.clientId) redirect(homeFor(user));
+  return user as EmployeeUser;
+}
+
 /** Runs fn in a transaction as this user. */
 export function as<T>(user: SessionUser, fn: (sql: Sql) => Promise<T>): Promise<T> {
   return tx(user.id, fn);

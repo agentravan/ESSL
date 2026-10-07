@@ -38,6 +38,7 @@ export interface Employee {
   bank_name: string;
   bank_ifsc: string;
   bank_acct_last4: string;
+  manager_id: string | null;
 }
 
 /** Columns safe to read into a page. Encrypted columns are fetched only when revealing. */
@@ -45,7 +46,7 @@ export const EMPLOYEE_COLUMNS = `id, client_id, emp_code, full_name, father_name
   designation, department, location, work_state, email, phone, address, status, pf_applicable, pf_restrict,
   eps_applicable, uan, pf_number, esi_applicable, esi_number, pwd, pt_applicable, tax_regime,
   old_regime_deductions, tds_override_monthly, opening_fy, opening_taxable_ytd, opening_tds_ytd,
-  pan_masked, aadhaar_last4, bank_name, bank_ifsc, bank_acct_last4`;
+  pan_masked, aadhaar_last4, bank_name, bank_ifsc, bank_acct_last4, manager_id`;
 
 export interface SalaryStructure extends Components {
   id: string;

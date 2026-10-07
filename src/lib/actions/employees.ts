@@ -59,6 +59,7 @@ function employeeFields(form: FormData) {
     opening_fy,
     opening_taxable_ytd: num(form, 'opening_taxable_ytd', 'Opening taxable salary'),
     opening_tds_ytd: num(form, 'opening_tds_ytd', 'Opening TDS'),
+    manager_id: isUuid(str(form, 'manager_id')) ? str(form, 'manager_id') : null,
     bank_name: str(form, 'bank_name'),
     bank_ifsc: str(form, 'bank_ifsc') ? cleanIfsc(str(form, 'bank_ifsc')) : '',
   };
@@ -112,14 +113,14 @@ export async function createEmployeeAction(form: FormData): Promise<void> {
         `insert into employees (client_id, emp_code, full_name, father_name, gender, dob, doj, exit_date, designation,
             department, location, work_state, email, phone, address, status, pf_applicable, pf_restrict, eps_applicable,
             uan, pf_number, esi_applicable, esi_number, pwd, pt_applicable, tax_regime, old_regime_deductions,
-            tds_override_monthly, opening_fy, opening_taxable_ytd, opening_tds_ytd, bank_name, bank_ifsc)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)
+            tds_override_monthly, opening_fy, opening_taxable_ytd, opening_tds_ytd, bank_name, bank_ifsc, manager_id)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34)
          returning id`,
         [clientId, f.emp_code, f.full_name, f.father_name, f.gender, f.dob, f.doj, f.exit_date, f.designation,
          f.department, f.location, f.work_state, f.email, f.phone, f.address, f.status, f.pf_applicable, f.pf_restrict,
          f.eps_applicable, f.uan, f.pf_number, f.esi_applicable, f.esi_number, f.pwd, f.pt_applicable, f.tax_regime,
          f.old_regime_deductions, f.tds_override_monthly, f.opening_fy, f.opening_taxable_ytd, f.opening_tds_ytd,
-         f.bank_name, f.bank_ifsc],
+         f.bank_name, f.bank_ifsc, f.manager_id],
       );
       const empId = row!.id;
       await applySensitive(sql, empId, sensitive);
@@ -152,13 +153,13 @@ export async function updateEmployeeAction(form: FormData): Promise<void> {
             designation=$10, department=$11, location=$12, work_state=$13, email=$14, phone=$15, address=$16, status=$17,
             pf_applicable=$18, pf_restrict=$19, eps_applicable=$20, uan=$21, pf_number=$22, esi_applicable=$23,
             esi_number=$24, pwd=$25, pt_applicable=$26, tax_regime=$27, old_regime_deductions=$28,
-            tds_override_monthly=$29, opening_fy=$30, opening_taxable_ytd=$31, opening_tds_ytd=$32, bank_name=$33, bank_ifsc=$34
+            tds_override_monthly=$29, opening_fy=$30, opening_taxable_ytd=$31, opening_tds_ytd=$32, bank_name=$33, bank_ifsc=$34, manager_id=$35
           where id=$1 and client_id=$2 returning id`,
         [id, clientId, f.emp_code, f.full_name, f.father_name, f.gender, f.dob, f.doj, f.exit_date, f.designation,
          f.department, f.location, f.work_state, f.email, f.phone, f.address, f.status, f.pf_applicable, f.pf_restrict,
          f.eps_applicable, f.uan, f.pf_number, f.esi_applicable, f.esi_number, f.pwd, f.pt_applicable, f.tax_regime,
          f.old_regime_deductions, f.tds_override_monthly, f.opening_fy, f.opening_taxable_ytd, f.opening_tds_ytd,
-         f.bank_name, f.bank_ifsc],
+         f.bank_name, f.bank_ifsc, f.manager_id === id ? null : f.manager_id],
       );
       if (rows.length === 0) throw new UserError('Employee not found.');
       await applySensitive(sql, id, sensitive);

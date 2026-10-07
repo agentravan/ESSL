@@ -4,6 +4,7 @@ import { saveAttendanceAction } from '@/lib/actions/payroll';
 import { SubmitButton } from '@/components/client';
 import { Empty, Flash, Notice } from '@/components/ui';
 import { employedDaysIn } from '@/lib/payroll/calc';
+import { unpaidLeaveDays } from '@/lib/leave-db';
 import { currentPeriod, daysInMonth, firstDay, isPeriod, lastDay, periodLabel } from '@/lib/payroll/period';
 
 export const metadata = { title: 'Attendance' };
@@ -37,7 +38,8 @@ export default async function AttendancePage({ params, searchParams }: {
       [client.id, firstDay(period), lastDay(period)],
     );
     const run = await sql.one<{ status: string }>('select status from payroll_runs where client_id = $1 and period = $2', [client.id, firstDay(period)]);
-    return { rows, locked: run?.status === 'locked' };
+    const unpaid = await unpaidLeaveDays(sql, client.id, period);
+    return { rows, locked: run?.status === 'locked', unpaid };
   });
   const dim = daysInMonth(period);
   return (
@@ -87,13 +89,13 @@ export default async function AttendancePage({ params, searchParams }: {
                           min={0}
                           max={dim}
                           step="0.5"
-                          defaultValue={r.lop_days ?? 0}
+                          defaultValue={r.lop_days ?? data.unpaid.get(r.id) ?? 0}
                           disabled={data.locked}
                           className="input w-24 text-right tabular-nums"
                         />
                       </td>
                       <td className="td">
-                        <input aria-label={`Remarks for ${r.full_name}`} name={`rem_${r.id}`} defaultValue={r.remarks ?? ''} maxLength={120} disabled={data.locked} className="input min-w-[10rem]" />
+                        <input aria-label={`Remarks for ${r.full_name}`} name={`rem_${r.id}`} defaultValue={r.remarks ?? (data.unpaid.get(r.id) ? 'Approved unpaid leave' : '')} maxLength={120} disabled={data.locked} className="input min-w-[10rem]" />
                       </td>
                     </tr>
                   );
@@ -104,7 +106,7 @@ export default async function AttendancePage({ params, searchParams }: {
           {!data.locked && (
             <div className="flex flex-wrap items-center gap-3">
               <SubmitButton>Save attendance</SubmitButton>
-              <p className="text-xs text-stone-500">Enter only the unpaid days. Everyone else is paid for the full month. Half days are allowed (0.5).</p>
+              <p className="text-xs text-stone-500">Enter only the unpaid days. Everyone else is paid for the full month. Half days are allowed (0.5). Approved unpaid leave is filled in for you until you save.</p>
             </div>
           )}
         </form>
