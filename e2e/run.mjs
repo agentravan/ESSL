@@ -393,7 +393,7 @@ await step('modules', async () => {
   check('quick search finds employees', found.hits.filter((h) => h.kind === 'Employee').length >= 3, JSON.stringify(found.hits).slice(0, 200));
   await page.keyboard.press('Control+k');
   await page.fill('dialog input', 'prospect');
-  await page.waitForSelector('dialog [role=option]');
+  await page.waitForSelector('dialog [role=option]:has-text("Prospect Co")');
   check('Ctrl+K opens search and lists the client', (await page.locator('dialog').innerText()).includes('Prospect Co'));
   await page.keyboard.press('Escape');
   await page.click('button[aria-label="Switch to dark screen"]');
@@ -464,7 +464,8 @@ await step('modules', async () => {
   const file = await hr.page.request.get(`${BASE}${fileHref}`);
   check('HR can open the uploaded file, decrypted', file.status() === 200 && (await file.body()).equals(png));
   await hr.page.locator('button:has-text("Verify")').first().click();
-  check('HR can verify a document', (await text(hr.page)).includes('Marked as verified'));
+  t = await text(hr.page);
+  check('HR can verify a document', t.includes('Marked as verified'), `${hr.page.url()} ${t.slice(0, 500).replace(/\n/g, ' | ')}`);
   await hr.page.goto(`${BASE}/c/${demo}/grievances`);
   t = await text(hr.page);
   check('HR sees the anonymous concern without a name', t.includes('Parking area light') && !/Parking area light[^\n]*Demo Sales Officer/.test(t));
