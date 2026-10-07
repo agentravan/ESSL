@@ -51,7 +51,8 @@ export async function verifyDocumentAction(form: FormData): Promise<void> {
     if (!isFirm(user) && user.role !== 'client_hr') throw new UserError('Only HR can verify documents.');
     const id = str(form, 'id');
     const decision = str(form, 'decision');
-    if (!isUuid(id) || !['verified', 'rejected', 'uploaded'].includes(decision)) throw new FormError('Document not found.');
+    if (!isUuid(id)) throw new FormError('Document not found.');
+    if (!['verified', 'rejected', 'uploaded'].includes(decision)) throw new FormError('Choose Verify or Reject.');
     const note = str(form, 'note').slice(0, 200);
     if (decision === 'rejected' && !note) throw new FormError('Say why the document is rejected, so the employee knows what to upload instead.');
     await as(user, async (sql) => {
@@ -59,7 +60,7 @@ export async function verifyDocumentAction(form: FormData): Promise<void> {
         `update employee_documents set status = $2, note = $3, verified_by = $4, verified_at = now() where id = $1 returning client_id, employee_id`,
         [id, decision, note, user.id],
       );
-      if (!row) throw new UserError('Document not found.');
+      if (!row) throw new UserError('This document could not be changed.');
       await sql('select audit($1, $2, $3, $4, $5)', [`document.${decision}`, 'employee', row.employee_id, row.client_id, '{}']);
     });
     return { to: back, msg: decision === 'verified' ? 'Marked as verified.' : decision === 'rejected' ? 'Marked as rejected.' : 'Moved back to waiting.' };

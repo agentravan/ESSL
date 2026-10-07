@@ -360,7 +360,7 @@ await step('modules', async () => {
   check('leave queue shows pending requests', t.includes('Travel to home town') && t.includes('Bank work'));
   await page.locator('button:has-text("Approve")').first().click();
   t = await text(page);
-  check('HR can approve leave', /approved/i.test(t));
+  check('HR can approve leave', t.includes('Leave approved.'), t.slice(0, 400).replace(/\n/g, ' | '));
   await page.goto(`${BASE}/c/${demo}/attendance/daily`);
   t = await text(page);
   check('daily register lists people and marks', t.includes('Demo Manager One') && /\bP\b/.test(t));
