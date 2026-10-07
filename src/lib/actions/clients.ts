@@ -68,10 +68,10 @@ export async function createClientAction(form: FormData): Promise<void> {
     const row = await as(user, async (sql) => {
       const created = await sql.one<{ id: string }>(
         `insert into clients (code, name, legal_name, address, state, contact_name, contact_email, contact_phone,
-                              pf_code, esi_code, pan, tan, gstin, pf_wage_rule, day_basis)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) returning id`,
+                              pf_code, esi_code, pan, tan, gstin, pf_wage_rule, day_basis, industry)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) returning id`,
         [f.code, f.name, f.legal_name, f.address, f.state, f.contact_name, f.contact_email, f.contact_phone,
-         f.pf_code, f.esi_code, f.pan, f.tan, f.gstin, f.pf_wage_rule, f.day_basis],
+         f.pf_code, f.esi_code, f.pan, f.tan, f.gstin, f.pf_wage_rule, f.day_basis, f.industry],
       );
       await sql('select audit($1, $2, $3, $4, $5)', ['client.create', 'client', created!.id, created!.id, JSON.stringify({ code: f.code })]);
       return created!;
