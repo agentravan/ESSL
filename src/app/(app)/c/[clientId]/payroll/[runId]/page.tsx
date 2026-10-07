@@ -10,6 +10,7 @@ import { dateTime, inr } from '@/lib/format';
 import type { LineEmp } from '@/lib/payroll/payslip-data';
 import { periodLabel } from '@/lib/payroll/period';
 import type { RunTotals, StoredCalc } from '@/lib/payroll/run';
+import { esiSheet, pfEcr } from '@/lib/exports';
 
 export const metadata = { title: 'Payroll month' };
 
@@ -203,6 +204,9 @@ export default async function RunPage({ params, searchParams }: {
           </tbody>
         </TableWrap>
       )}
+      {firm && lines.length > 0 && (
+        <FilesPanel runId={run.id} locked={locked} lines={lines} />
+      )}
       <p className="text-xs text-stone-500">
         Rounding: earnings, PF and TDS to the nearest rupee; ESI to the next higher rupee. PF admin charge is at least the monthly minimum per establishment.
       </p>
@@ -237,5 +241,44 @@ export default async function RunPage({ params, searchParams }: {
         </div>
       )}
     </div>
+  );
+}
+
+function FilesPanel({ runId, locked, lines }: { runId: string; locked: boolean; lines: Line[] }) {
+  const problems = [...pfEcr(lines).problems, ...esiSheet(lines).problems, ...lines
+    .filter((l) => l.net_pay > 0 && !l.emp.bankAccount)
+    .map((l) => ({ code: l.emp.code, name: l.emp.name, message: 'No bank account on file, so this person is left out of the bank file.' }))];
+  const files = [
+    { kind: 'pf-ecr', label: 'PF ECR file (.txt)' },
+    { kind: 'esi', label: 'ESI contribution sheet' },
+    { kind: 'pt', label: 'Professional tax statement' },
+    { kind: 'bank', label: 'Bank transfer sheet' },
+  ];
+  return (
+    <section className="card">
+      <div className="border-b border-stone-200 px-4 py-3">
+        <h2 className="text-sm font-semibold text-stone-900">Files for filing and payment</h2>
+      </div>
+      <div className="space-y-3 p-4">
+        {locked ? (
+          <div className="flex flex-wrap gap-2">
+            {files.map((f) => <a key={f.kind} href={`/api/export/${runId}/${f.kind}`} className="btn-secondary">{f.label}</a>)}
+          </div>
+        ) : (
+          <p className="text-sm text-stone-600">These files are made from final figures. Lock the month to download the PF ECR, ESI, professional tax and bank files.</p>
+        )}
+        {problems.length > 0 && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
+            <p className="font-medium">Fix these before filing</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              {problems.map((p, i) => <li key={i}>{p.code} {p.name}: {p.message}</li>)}
+            </ul>
+          </div>
+        )}
+        <p className="text-xs text-stone-500">
+          Check each file against the portal's current sample before the first real upload. The bank sheet contains full account numbers, and every download is written to the activity log.
+        </p>
+      </div>
+    </section>
   );
 }

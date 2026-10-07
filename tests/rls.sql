@@ -53,10 +53,10 @@ commit;
 -- ---------------------------------------------------------------- firm administrator
 begin;
 select set_config('hrms.user_id', '10000000-0000-0000-0000-000000000001', true);
-select pg_temp.expect('admin: clients', (select count(*) from clients), 2);
-select pg_temp.expect('admin: employees', (select count(*) from employees), 3);
-select pg_temp.expect('admin: payroll lines', (select count(*) from payroll_lines), 5);
-select pg_temp.expect('admin: users', (select count(*) from users), 6);
+select pg_temp.expect('admin: clients', (select count(*) from clients), 3);
+select pg_temp.expect('admin: employees', (select count(*) from employees), 4);
+select pg_temp.expect('admin: payroll lines', (select count(*) from payroll_lines), 6);
+select pg_temp.expect('admin: users', (select count(*) from users), 7);
 select pg_temp.expect('admin: rules visible', (select (count(*) > 0)::int from statutory_rules), 1);
 select pg_temp.must_fail('admin: read password hashes', 'select password_hash from users');
 select pg_temp.must_fail('admin: change a locked payroll line',
@@ -75,7 +75,7 @@ commit;
 -- administrator may unlock, staff may not
 begin;
 select set_config('hrms.user_id', '10000000-0000-0000-0000-000000000002', true);
-select pg_temp.expect('staff: clients', (select count(*) from clients), 2);
+select pg_temp.expect('staff: clients', (select count(*) from clients), 3);
 select pg_temp.must_fail('staff: unlock payroll',
   $$update payroll_runs set status = 'draft' where id = '20000000-0000-0000-0000-00000000000b'$$);
 select pg_temp.must_fail('staff: change a rule', $$update statutory_rules set verified = true$$);
@@ -135,7 +135,7 @@ commit;
 -- ---------------------------------------------------------------- employee (Asha, Alpha)
 begin;
 select set_config('hrms.user_id', '10000000-0000-0000-0000-0000000000a1', true);
-select pg_temp.expect('employee: sees only self', (select count(*) from employees), 1);
+select pg_temp.expect('employee: sees self and the one person who reports to her', (select count(*) from employees), 2);
 select pg_temp.expect('employee: own salary structure', (select count(*) from salary_structures), 1);
 select pg_temp.expect('employee: own locked payslips', (select count(*) from payroll_lines), 1);
 select pg_temp.expect('employee: shared documents only', (select count(*) from documents), 1);
@@ -168,6 +168,100 @@ select pg_temp.expect('not locked after four failures',
 select auth_login_result('10000000-0000-0000-0000-00000000000b', false);
 select pg_temp.expect('locked after five failures',
   (select count(*) from auth_user_by_email('hr@beta.local') where locked_until > now()), 1);
+rollback;
+
+-- ================================================================ leave, punches, documents, grievances
+-- ---- manager (Asha manages Amit)
+begin;
+select set_config('hrms.user_id', '10000000-0000-0000-0000-0000000000a1', true);
+select pg_temp.expect('manager: sees own and team leave, not other clients', (select count(*) from leave_requests), 2);
+select pg_temp.expect('manager: leave types of own client only', (select count(*) from leave_types), 1);
+select pg_temp.must_fail('manager: edit a request directly', $$update leave_requests set status = 'approved'$$);
+select pg_temp.must_fail('manager: approve own request', $$select leave_decide('31000000-0000-0000-0000-0000000000a1', true, '')$$);
+select pg_temp.must_fail('manager: decide another client''s request', $$select leave_decide('31000000-0000-0000-0000-0000000000b1', true, '')$$);
+select leave_decide('31000000-0000-0000-0000-0000000000a2', true, 'ok');
+select pg_temp.expect('manager: approved a team request', (select count(*) from leave_requests where status = 'approved'), 1);
+select pg_temp.must_fail('manager: decide twice', $$select leave_decide('31000000-0000-0000-0000-0000000000a2', false, '')$$);
+select pg_temp.must_fail('employee: apply already approved', $$insert into leave_requests (client_id, employee_id, leave_type_id, from_date, to_date, days, status)
+  values ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a1', '30000000-0000-0000-0000-00000000000a', '2026-12-01', '2026-12-01', 1, 'approved')$$);
+select pg_temp.must_fail('employee: apply for someone else', $$insert into leave_requests (client_id, employee_id, leave_type_id, from_date, to_date, days)
+  values ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a2', '30000000-0000-0000-0000-00000000000a', '2026-12-01', '2026-12-01', 1)$$);
+insert into leave_requests (client_id, employee_id, leave_type_id, from_date, to_date, days)
+  values ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a1', '30000000-0000-0000-0000-00000000000a', '2026-12-01', '2026-12-01', 1);
+select leave_cancel('31000000-0000-0000-0000-0000000000a1');
+select pg_temp.expect('employee: withdrew own waiting request', (select count(*) from leave_requests where status = 'cancelled'), 1);
+select pg_temp.must_fail('employee: change leave quota', $$update leave_types set annual_quota = 99$$);
+select pg_temp.must_fail('employee: give self extra leave', $$insert into leave_adjustments (client_id, employee_id, leave_type_id, year, days)
+  values ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a1', '30000000-0000-0000-0000-00000000000a', 2026, 30)$$);
+
+select pg_temp.expect('employee: punches of self and team', (select count(*) from attendance_punches), 2);
+insert into attendance_punches (client_id, employee_id, ts, kind, source)
+  values ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a1', now(), 'in', 'web');
+select pg_temp.must_fail('employee: back-dated punch', $$insert into attendance_punches (client_id, employee_id, ts, kind, source)
+  values ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a1', now() - interval '2 hours', 'in', 'web')$$);
+select pg_temp.must_fail('employee: punch for a colleague', $$insert into attendance_punches (client_id, employee_id, ts, kind, source)
+  values ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a2', now(), 'in', 'web')$$);
+select pg_temp.must_fail('employee: punch marked as imported', $$insert into attendance_punches (client_id, employee_id, ts, kind, source)
+  values ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a1', now(), 'out', 'import')$$);
+select pg_temp.must_fail('employee: delete a punch', $$delete from attendance_punches$$);
+
+select pg_temp.expect('employee: own documents only', (select count(*) from employee_documents), 1);
+select pg_temp.must_fail('employee: mark own document verified', $$update employee_documents set status = 'verified'$$);
+select pg_temp.must_fail('employee: upload already verified', $$insert into employee_documents (client_id, employee_id, kind, file_name, mime, size_bytes, content, status)
+  values ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a1', 'photo', 'p.png', 'image/png', 1, 'x', 'verified')$$);
+
+select pg_temp.expect('employee: own grievance only, not the anonymous one', (select count(*) from grievances), 1);
+select pg_temp.expect('employee: replies without internal notes', (select count(*) from grievance_events), 1);
+select pg_temp.expect('anonymous case found by its code', (select count(*) from grievance_by_code('secret-hash')), 1);
+select pg_temp.expect('another client''s anonymous case is not found', (select count(*) from grievance_by_code('beta-hash')), 0);
+select pg_temp.must_fail('employee: close own grievance', $$update grievances set status = 'closed'$$);
+select pg_temp.must_fail('employee: raise in someone else''s name', $$insert into grievances (client_id, ref_no, raised_by, employee_id, category, subject, description, sla_due_at)
+  values ('00000000-0000-0000-0000-00000000000a', 'G-9', '10000000-0000-0000-0000-00000000000a', null, 'other', 'Fake one', 'Raised in another name.', now())$$);
+insert into grievances (id, client_id, ref_no, raised_by, employee_id, anonymous, tracking_hash, category, subject, description, sla_due_at)
+  values ('40000000-0000-0000-0000-0000000000a9', '00000000-0000-0000-0000-00000000000a', 'G-3', null, null, true, 'h3', 'other', 'Anonymous one', 'Raised without a name.', now());
+select pg_temp.expect('employee: cannot read back an anonymous case', (select count(*) from grievances where id = '40000000-0000-0000-0000-0000000000a9'), 0);
+rollback;
+
+-- ---- report (Amit) cannot decide anything
+begin;
+select set_config('hrms.user_id', '10000000-0000-0000-0000-0000000000a1', true);
+commit;
+
+-- ---- client HR
+begin;
+select set_config('hrms.user_id', '10000000-0000-0000-0000-00000000000a', true);
+select pg_temp.expect('alpha hr: leave requests', (select count(*) from leave_requests), 2);
+select pg_temp.expect('alpha hr: punches', (select count(*) from attendance_punches), 2);
+select pg_temp.expect('alpha hr: documents', (select count(*) from employee_documents), 2);
+select pg_temp.expect('alpha hr: grievances incl. anonymous', (select count(*) from grievances), 2);
+select pg_temp.expect('alpha hr: all notes incl. internal', (select count(*) from grievance_events), 3);
+select pg_temp.must_fail('alpha hr: decide beta leave', $$select leave_decide('31000000-0000-0000-0000-0000000000b1', true, '')$$);
+select pg_temp.must_fail('alpha hr: delete a demo client', $$select delete_demo_client('00000000-0000-0000-0000-00000000000d')$$);
+update employee_documents set status = 'verified' where employee_id = '00000000-0000-0000-0000-0000000000a1';
+select pg_temp.expect('alpha hr: verified a document', (select count(*) from employee_documents where status = 'verified'), 1);
+rollback;
+
+begin;
+select set_config('hrms.user_id', '10000000-0000-0000-0000-00000000000b', true);
+select pg_temp.expect('beta hr: leave requests', (select count(*) from leave_requests), 1);
+select pg_temp.expect('beta hr: grievances', (select count(*) from grievances), 1);
+select pg_temp.expect('beta hr: documents', (select count(*) from employee_documents), 1);
+commit;
+
+-- ---- demo client removal
+begin;
+select set_config('hrms.user_id', '10000000-0000-0000-0000-000000000002', true);
+select pg_temp.must_fail('staff: delete a demo client', $$select delete_demo_client('00000000-0000-0000-0000-00000000000d')$$);
+commit;
+begin;
+select set_config('hrms.user_id', '10000000-0000-0000-0000-000000000001', true);
+select pg_temp.must_fail('admin: delete a real client as if it were a demo', $$select delete_demo_client('00000000-0000-0000-0000-00000000000a')$$);
+select pg_temp.must_fail('admin: delete a locked demo run directly', $$delete from payroll_runs where id = '20000000-0000-0000-0000-00000000000d'$$);
+select delete_demo_client('00000000-0000-0000-0000-00000000000d');
+select pg_temp.expect('admin: demo client gone with its people, payroll and login',
+  (select count(*) from clients where is_demo) + (select count(*) from employees where emp_code = 'D001')
+  + (select count(*) from payroll_runs where id = '20000000-0000-0000-0000-00000000000d') + (select count(*) from users where email = 'hr@demo.local'), 0);
+select pg_temp.must_fail('admin: real locked payroll is still protected', $$delete from payroll_runs where id = '20000000-0000-0000-0000-00000000000a'$$);
 rollback;
 
 \echo ALL ISOLATION TESTS PASSED
