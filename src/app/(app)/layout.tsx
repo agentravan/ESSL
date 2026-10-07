@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { isFirm, requireUser, homeFor } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import { logoutAction } from '@/lib/actions/auth';
+import { toggleThemeAction } from '@/lib/actions/prefs';
+import { QuickSearch } from '@/components/quick-search';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     links.push({ href: '/me', label: 'My page' });
   }
   const demo = process.env.DEMO_BANNER === '1';
+  const dark = (await cookies()).get('theme')?.value === 'dark';
   return (
     <div className="min-h-screen">
       {demo && (
@@ -38,7 +42,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               </Link>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-3 text-sm">
+          <div className="ml-auto flex items-center gap-2 text-sm sm:gap-3">
+            {user.role !== 'employee' && <QuickSearch />}
+            <form action={toggleThemeAction}>
+              <button type="submit" className="btn-secondary px-2.5 py-1.5" aria-label={dark ? 'Switch to light screen' : 'Switch to dark screen'} title={dark ? 'Light screen' : 'Dark screen'}>
+                {dark ? 'Light' : 'Dark'}
+              </button>
+            </form>
             <Link href="/account" className="text-right leading-tight hover:underline">
               <span className="block max-w-[11rem] truncate font-medium text-stone-900">{user.fullName}</span>
               <span className="block text-xs text-stone-500">{ROLE_LABEL[user.role]}</span>

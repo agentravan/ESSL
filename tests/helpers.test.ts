@@ -139,3 +139,18 @@ test('AI reply is read defensively', () => {
   assert.equal(ai.category, 'payroll');
   assert.throws(() => parseAiReply('no json here'));
 });
+
+import { upcomingDates } from '../src/lib/dashboard';
+
+test('upcoming birthdays and anniversaries', () => {
+  const people = [
+    { id: 'a', full_name: 'A', dob: '1990-10-10', doj: '2024-10-20' },
+    { id: 'b', full_name: 'B', dob: '1992-02-29', doj: '2026-10-01' },
+    { id: 'c', full_name: 'C', dob: '1985-01-02', doj: '2020-12-30' },
+  ];
+  const got = upcomingDates(people, '2026-10-07', 30);
+  assert.deepEqual(got.map((g) => `${g.id}:${g.kind}:${g.date}:${g.years}`), ['a:birthday:2026-10-10:36', 'a:anniversary:2026-10-20:2']);
+  const yearEnd = upcomingDates(people, '2026-12-20', 30);
+  assert.deepEqual(yearEnd.map((g) => `${g.id}:${g.kind}:${g.date}`), ['c:anniversary:2026-12-30', 'c:birthday:2027-01-02']);
+  assert.equal(upcomingDates(people, '2027-02-20', 10)[0].date, '2027-02-28');
+});

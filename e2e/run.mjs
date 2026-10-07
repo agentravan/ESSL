@@ -312,6 +312,182 @@ await step('phone layout', async () => {
   await context.close();
 });
 
+// ------------------------------------------------------------ newer modules, on a demo client
+await step('modules', async () => {
+  const { context, page } = await session();
+  const a = login('Administrator');
+  await signIn(page, a.email, a.password);
+  let t = await text(page);
+  check('office dashboard shows charts', t.includes('Payroll by month, all clients') && t.includes('Employees by client'));
+  await page.fill('#demo_name', 'Prospect Co');
+  await page.fill('#demo_industry', 'Manufacturing');
+  await page.click('button:has-text("Create demo client")');
+  await page.waitForSelector('text=is ready with 12 invented employees', { timeout: 90000 });
+  t = await text(page);
+  check('demo client is built with payroll', !t.includes('payroll could not be run'), t.match(/payroll could not be run[^\n]*/)?.[0] ?? '');
+  const codes = await page.locator('code').allInnerTexts();
+  check('three demo logins are shown once', codes.length === 6 && codes[0].startsWith('hr.demo') && codes[2].startsWith('emp.demo'), codes.filter((_, i) => i % 2 === 0).join(','));
+  const demo = (await page.locator('a:has-text("Open it")').getAttribute('href')).split('/')[2];
+  await page.screenshot({ path: `${OUT}11-demo-created.png`, fullPage: true });
+
+  await page.goto(`${BASE}/c/${demo}`);
+  t = await text(page);
+  check('client dashboard shows widgets', t.includes('Payroll cost by month') && t.includes('People by department') && t.includes('Birthdays and work anniversaries'));
+  check('client dashboard counts pending leave and open concerns', /Leave waiting for approval\s*2/i.test(t) && /Open concerns\s*2/i.test(t), t.slice(0, 600).replace(/\n/g, ' | '));
+  await page.screenshot({ path: `${OUT}12-client-dashboard.png`, fullPage: true });
+
+  await page.goto(`${BASE}/c/${demo}/payroll`);
+  await settle(page);
+  const runLinks = [...new Set(await page.locator(`a[href^="/c/${demo}/payroll/"]`).evaluateAll((els) => els.map((e) => e.getAttribute('href'))))].filter((h) => /payroll\/[0-9a-f-]{36}$/.test(h));
+  check('demo has three payroll months', runLinks.length === 3, String(runLinks.length));
+  const statuses = [];
+  let ecr = '';
+  for (const h of runLinks) {
+    const r = await page.request.get(`${BASE}/api/export/${h.split('/').pop()}/pf-ecr`);
+    statuses.push(r.status());
+    if (r.status() === 200) ecr = await r.text();
+  }
+  check('PF ECR downloads for locked months only', statuses.filter((x) => x === 200).length === 2, statuses.join(','));
+  check('PF ECR has one #~# line per member', ecr.trim().split('\n').length === 12 && ecr.includes('#~#'), ecr.slice(0, 120));
+  const lockedRun = runLinks[statuses.indexOf(200)].split('/').pop();
+  for (const kind of ['esi', 'pt', 'bank']) {
+    const r = await page.request.get(`${BASE}/api/export/${lockedRun}/${kind}`);
+    check(`${kind} file downloads`, r.status() === 200 && (await r.body()).length > 50, `status ${r.status()}`);
+  }
+
+  await page.goto(`${BASE}/c/${demo}/leave`);
+  t = await text(page);
+  check('leave queue shows pending requests', t.includes('Travel to home town') && t.includes('Bank work'));
+  await page.locator('button:has-text("Approve")').first().click();
+  t = await text(page);
+  check('HR can approve leave', /approved/i.test(t));
+  await page.goto(`${BASE}/c/${demo}/attendance/daily`);
+  t = await text(page);
+  check('daily register lists people and marks', t.includes('Demo Manager One') && /\bP\b/.test(t));
+  await page.screenshot({ path: `${OUT}13-daily-register.png`, fullPage: true });
+
+  await page.goto(`${BASE}/c/${demo}/grievances`);
+  t = await text(page);
+  check('concern list shows time limits', t.includes('Travel claim') && /overdue by/i.test(t) && /no name given/i.test(t));
+  await page.click('a:has-text("GRV-") >> nth=0');
+  await page.waitForURL(/grievances\/[0-9a-f-]{36}/);
+  const grievanceId = page.url().split('/').pop().split('?')[0];
+  await page.fill('#c_body', 'Internal: checked with accounts, claim is in the next batch.');
+  await page.check('input[name=internal]');
+  await page.click('button:has-text("Add")');
+  t = await text(page);
+  check('internal note is saved', t.includes('Internal note saved') && t.includes('checked with accounts'));
+  await page.selectOption('#u_status', 'resolved');
+  await page.click('button:has-text("Save")');
+  check('resolving needs a written resolution', (await text(page)).includes('Write what was decided'));
+  await page.selectOption('#u_status', 'resolved');
+  await page.fill('#u_resolution', 'Claim approved. It will be paid with this month salary.');
+  await page.click('button:has-text("Save")');
+  t = await text(page);
+  check('concern can be resolved', t.includes('Saved') && /resolved/i.test(t));
+  const pdf = await page.request.get(`${BASE}/api/grievance/${grievanceId}`);
+  check('case summary PDF opens', pdf.status() === 200 && (await pdf.body()).subarray(0, 4).toString() === '%PDF');
+  await page.screenshot({ path: `${OUT}14-grievance.png`, fullPage: true });
+
+  const found = await (await page.request.post(`${BASE}/api/search`, { data: { q: 'demo sales' } })).json();
+  check('quick search finds employees', found.hits.filter((h) => h.kind === 'Employee').length >= 3, JSON.stringify(found.hits).slice(0, 200));
+  await page.keyboard.press('Control+k');
+  await page.fill('dialog input', 'prospect');
+  await page.waitForSelector('dialog [role=option]');
+  check('Ctrl+K opens search and lists the client', (await page.locator('dialog').innerText()).includes('Prospect Co'));
+  await page.keyboard.press('Escape');
+  await page.click('button[aria-label="Switch to dark screen"]');
+  await settle(page);
+  check('dark screen switches on', await page.evaluate(() => document.documentElement.classList.contains('dark')));
+  await page.screenshot({ path: `${OUT}15-dark.png`, fullPage: true });
+  await page.click('button[aria-label="Switch to light screen"]');
+  await settle(page);
+
+  // the demo employee
+  const emp = await session({ width: 390, height: 800 });
+  await signIn(emp.page, codes[2], codes[3]);
+  check('demo employee lands on My page', new URL(emp.page.url()).pathname === '/me');
+  await emp.page.goto(`${BASE}/me/grievances`);
+  t = await text(emp.page);
+  check('employee sees own concern and the resolution, not the internal note', t.includes('Travel claim') && !t.includes('checked with accounts') && !t.includes('water cooler'));
+  check('concern screen fits a phone', await noSideScroll(emp.page), await overflowing(emp.page));
+  await emp.page.selectOption('#g_category', 'workplace');
+  await emp.page.fill('#g_subject', 'Parking area light is broken');
+  await emp.page.fill('#g_description', 'The light in the parking area has been off for three days. It is unsafe at night.');
+  await emp.page.check('input[name=anonymous]');
+  await emp.page.click('button:has-text("Send to HR")');
+  await emp.page.waitForSelector('text=Tracking code');
+  const tracking = await emp.page.locator('code').first().innerText();
+  check('an anonymous concern gives a tracking code', /^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(tracking), tracking);
+  await emp.page.goto(`${BASE}/me/grievances`);
+  t = await text(emp.page);
+  check('the anonymous concern is not listed under the employee', !t.includes('Parking area light'));
+  await emp.page.fill('#g_code', tracking.toLowerCase());
+  await emp.page.click('button:has-text("See status")');
+  await emp.page.waitForSelector('text=Parking area light is broken');
+  check('tracking code shows the concern', true);
+  const denied = await emp.page.request.get(`${BASE}/api/grievance/${grievanceId}`);
+  check('employee cannot open the HR case summary', denied.status() === 404, `status ${denied.status()}`);
+  const empSearch = await (await emp.page.request.post(`${BASE}/api/search`, { data: { q: 'demo' } })).json();
+  check('employee login gets nothing from search', empSearch.hits.length === 0);
+  await emp.page.goto(`${BASE}/me/documents`);
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  await emp.page.setInputFiles('#doc_file', { name: 'pan card.png', mimeType: 'image/png', buffer: png });
+  await emp.page.selectOption('#doc_kind', 'pan_card');
+  await emp.page.click('button:has-text("Upload")');
+  check('employee can upload a document', (await text(emp.page)).includes('Document uploaded'));
+  await emp.page.setInputFiles('#doc_file', { name: 'notes.png', mimeType: 'image/png', buffer: Buffer.from('this is not an image at all') });
+  await emp.page.click('button:has-text("Upload")');
+  check('a file that is not a real PDF or image is refused', (await text(emp.page)).includes('Only PDF, JPG and PNG'));
+  await emp.page.goto(`${BASE}/me/attendance`);
+  await emp.page.click('button:has-text("Punch")');
+  t = await text(emp.page);
+  check('employee can punch', /punch(ed)? (in|out)/i.test(t) && !/went wrong/i.test(t), t.slice(0, 300).replace(/\n/g, ' | '));
+  await emp.page.goto(`${BASE}/me/leave`);
+  t = await text(emp.page);
+  check('employee sees leave balances', t.includes('Casual Leave') && t.includes('Family function'));
+  check('leave screen fits a phone', await noSideScroll(emp.page), await overflowing(emp.page));
+  await emp.context.close();
+
+  // the demo client's HR
+  const hr = await session();
+  await signIn(hr.page, codes[0], codes[1]);
+  check('demo HR lands on their own company', new URL(hr.page.url()).pathname === `/c/${demo}`);
+  await hr.page.goto(`${BASE}/c/${north}`);
+  check('demo HR cannot open another client', new URL(hr.page.url()).pathname === `/c/${demo}`);
+  const hrSearch = await (await hr.page.request.post(`${BASE}/api/search`, { data: { q: 'sample' } })).json();
+  check('demo HR search does not reach other clients', hrSearch.hits.filter((h) => h.kind !== 'Page').length === 0, JSON.stringify(hrSearch.hits).slice(0, 200));
+  await hr.page.goto(`${BASE}/c/${demo}/documents`);
+  t = await text(hr.page);
+  check('HR sees the uploaded document waiting', /waiting for verification \(1\)/i.test(t));
+  const fileHref = await hr.page.locator('a[href^="/api/file/"]').first().getAttribute('href');
+  const file = await hr.page.request.get(`${BASE}${fileHref}`);
+  check('HR can open the uploaded file, decrypted', file.status() === 200 && (await file.body()).equals(png));
+  await hr.page.locator('button:has-text("Verify")').first().click();
+  check('HR can verify a document', (await text(hr.page)).includes('Marked as verified'));
+  await hr.page.goto(`${BASE}/c/${demo}/grievances`);
+  t = await text(hr.page);
+  check('HR sees the anonymous concern without a name', t.includes('Parking area light') && !/Parking area light[^\n]*Demo Sales Officer/.test(t));
+  await hr.context.close();
+
+  // the demo client's manager approves a team member's leave
+  const mgr = await session();
+  await signIn(mgr.page, codes[4], codes[5]);
+  await mgr.page.goto(`${BASE}/me/leave`);
+  t = await text(mgr.page);
+  check('manager sees the team request', t.includes('Bank work'));
+  await mgr.context.close();
+
+  // delete the demo
+  await page.goto(`${BASE}/clients`);
+  await page.click('button:has-text("Delete demo")');
+  await page.click('button:has-text("Yes, delete")');
+  t = await text(page);
+  check('demo client can be deleted in one step', t.includes('Demo client deleted') && !t.includes('Prospect Co (demo)'));
+  await signIn((await session()).page, codes[0], codes[1]);
+  await context.close();
+});
+
 // ------------------------------------------------------------ lockout
 await step('lockout', async () => {
   const { context, page } = await session();

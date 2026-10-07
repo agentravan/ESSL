@@ -23,3 +23,49 @@
   .num { @apply text-right tabular-nums; }
   .link { @apply font-medium text-brand-700 underline decoration-brand-500/40 underline-offset-2 hover:decoration-brand-700; }
 }
+
+/* Dark theme. The screens are written once in light colours; these rules re-map
+   the small set of colours they use when <html class="dark"> is set. */
+html.dark { color-scheme: dark; }
+html.dark body { background-color: #111614; color: #e7e9e8; }
+html.dark .bg-white, html.dark .card, html.dark .btn-secondary, html.dark .btn-danger, html.dark .input { background-color: #1a211f; }
+html.dark .bg-stone-50 { background-color: #151b19; }
+html.dark .bg-stone-100, html.dark .bg-stone-200 { background-color: #232c29; }
+html.dark .hover\:bg-stone-50:hover, html.dark .hover\:bg-stone-100:hover, html.dark .btn-secondary:hover { background-color: #2a3531; }
+html.dark .text-stone-900, html.dark .text-stone-800, html.dark .td, html.dark .input, html.dark .btn-secondary,
+html.dark .hover\:text-stone-900:hover, html.dark .hover\:text-stone-800:hover { color: #e7e9e8; }
+html.dark .text-stone-700, html.dark .text-stone-600 { color: #b9c0bd; }
+html.dark .text-stone-500, html.dark .th { color: #8f9995; }
+html.dark .text-stone-400, html.dark .text-stone-300 { color: #6d7773; }
+html.dark .border-stone-100, html.dark .border-stone-200, html.dark .border-stone-300, html.dark .card, html.dark .input, html.dark .btn-secondary,
+html.dark .hover\:border-stone-300:hover { border-color: #323d39; }
+html.dark .divide-stone-100 > :not([hidden]) ~ :not([hidden]), html.dark .divide-stone-200 > :not([hidden]) ~ :not([hidden]) { border-color: #2a3430; }
+html.dark .input::placeholder { color: #6d7773; }
+html.dark .input:disabled { background-color: #232c29; color: #8f9995; }
+html.dark .text-brand-700, html.dark .text-brand-600, html.dark .link { color: #6fd0bd; }
+html.dark .border-brand-600 { border-color: #6fd0bd; }
+html.dark .bg-red-50, html.dark .bg-red-100, html.dark .btn-danger:hover { background-color: #3a1d1d; }
+html.dark .text-red-900, html.dark .text-red-800, html.dark .text-red-700, html.dark .btn-danger { color: #fca5a5; }
+html.dark .border-red-200, html.dark .border-red-300, html.dark .btn-danger { border-color: #7f2a2a; }
+html.dark .bg-emerald-50, html.dark .bg-emerald-100 { background-color: #14302a; }
+html.dark .text-emerald-900, html.dark .text-emerald-800 { color: #86e3c1; }
+html.dark .border-emerald-200, html.dark .border-emerald-300 { border-color: #1f6a57; }
+html.dark .bg-amber-50, html.dark .bg-amber-100 { background-color: #3a2e12; }
+html.dark .text-amber-900 { color: #fcd58a; }
+html.dark .border-amber-200, html.dark .border-amber-300 { border-color: #7a5a14; }
+html.dark .bg-sky-50, html.dark .bg-sky-100 { background-color: #14293a; }
+html.dark .text-sky-900, html.dark .text-sky-800 { color: #9fd3f5; }
+html.dark .border-sky-200 { border-color: #1f5578; }
+html.dark .shadow-sm { box-shadow: none; }
+
+/* Gentle movement, only for people who have not asked their device to reduce motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .card, .btn { transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
+  .btn:active { transform: translateY(1px); }
+  main > * { animation: rise .25s ease both; }
+  .bar-grow { transform-origin: bottom; animation: grow .5s ease both; }
+  .bar-grow-x { transform-origin: left; animation: growx .5s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @keyframes grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  @keyframes growx { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+}
