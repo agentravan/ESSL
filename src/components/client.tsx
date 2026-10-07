@@ -5,7 +5,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useFormStatus } from 'react-dom';
-import { useState, type ReactNode } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
 
 export function Tabs({ tabs }: { tabs: { href: string; label: string; exact?: boolean }[] }) {
   const pathname = usePathname();
@@ -42,7 +42,7 @@ export function SubmitButton({ children, pendingText = 'Saving…', className = 
   // A form with two buttons (Approve / Reject) needs to say which one was pressed.
   // The choice travels in a hidden field filled in at the moment of the click,
   // which does not depend on the browser sending the pressed button's own value.
-  const choose = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const choose = (e: MouseEvent<HTMLButtonElement>) => {
     if (!name) return;
     const form = e.currentTarget.form;
     if (!form) return;
