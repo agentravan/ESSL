@@ -16,7 +16,7 @@ function check(name, ok, detail = '') {
   else { failures.push(name); console.log(`FAIL ${name} ${detail}`); }
 }
 async function step(name, fn) {
-  try { await fn(); } catch (err) { failures.push(name); console.log(`FAIL ${name}: ${String(err.message).split('\n')[0]}`); }
+  try { await fn(); } catch (err) { failures.push(name); console.log(`FAIL ${name}: ${String(err.message).split('\n').slice(0, 4).join(' / ')} @ ${String(err.stack).split('\n').find((l) => l.includes('run.mjs')) ?? ''}`); }
 }
 
 const browser = await chromium.launch();
@@ -484,7 +484,6 @@ await step('modules', async () => {
   await page.click('button:has-text("Yes, delete")');
   t = await text(page);
   check('demo client can be deleted in one step', t.includes('Demo client deleted') && !t.includes('Prospect Co (demo)'));
-  await signIn((await session()).page, codes[0], codes[1]);
   await context.close();
 });
 

@@ -12,5 +12,5 @@ pkill -f "next-serve[r]" 2>/dev/null; pkill -f "next star[t]" 2>/dev/null; sleep
 (npx next start -p 3000 >/tmp/start.log 2>&1 &)
 for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:3000/login && break; sleep 1; done
 cd e2e && [ -d node_modules ] || (npm install --no-audit --no-fund >/tmp/e2e-install.log 2>&1 && npx playwright install --with-deps chromium >/tmp/pw.log 2>&1)
-BASE_URL=http://localhost:3000 node run.mjs 2>&1 | grep -vE "^ok " 
+BASE_URL=http://localhost:3000 node run.mjs 2>&1 | tee /tmp/e2e-full.log | grep -vE "^ok "
 echo "--- server errors ---"; tr -d "\000" < /tmp/start.log | grep -iE "error|unexpected" | cut -c1-300 | sort | uniq -c | head -15
