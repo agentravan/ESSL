@@ -101,3 +101,41 @@ test('file encryption round trip and file-type sniffing', () => {
   assert.equal(sniffFileType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), 'image/png');
   assert.equal(sniffFileType(Buffer.from('MZ this is a program')), null);
 });
+
+import { effectivePriority, normaliseCode, slaDue, slaState, codeFromBytes } from '../src/lib/grievances';
+import { parseAiReply } from '../src/lib/grievance-ai';
+
+test('grievance time limits follow the priority', () => {
+  const from = new Date('2026-10-01T04:00:00Z');
+  assert.equal(slaDue('critical', from).toISOString(), '2026-10-02T04:00:00.000Z');
+  assert.equal(slaDue('high', from).toISOString(), '2026-10-03T04:00:00.000Z');
+  assert.equal(slaDue('medium', from).toISOString(), '2026-10-06T04:00:00.000Z');
+  assert.equal(slaDue('low', from).toISOString(), '2026-10-11T04:00:00.000Z');
+});
+
+test('a harassment complaint is never below high priority', () => {
+  assert.equal(effectivePriority('harassment', 'low'), 'high');
+  assert.equal(effectivePriority('harassment', 'critical'), 'critical');
+  assert.equal(effectivePriority('payroll', 'low'), 'low');
+});
+
+test('grievance time-limit badge', () => {
+  const g = { status: 'open', created_at: '2026-10-01T00:00:00Z', sla_due_at: '2026-10-03T00:00:00Z', closed_at: null };
+  assert.deepEqual(slaState(g, new Date('2026-10-01T12:00:00Z')), { tone: 'grey', label: '36 h left' });
+  assert.equal(slaState(g, new Date('2026-10-02T20:00:00Z')).tone, 'amber');
+  assert.deepEqual(slaState(g, new Date('2026-10-03T05:00:00Z')), { tone: 'red', label: 'Overdue by 5 h' });
+  assert.equal(slaState({ ...g, status: 'resolved', closed_at: '2026-10-02T00:00:00Z' }).label, 'Resolved in time');
+  assert.equal(slaState({ ...g, status: 'closed', closed_at: '2026-10-06T00:00:00Z' }).label, 'Resolved 3 days late');
+});
+
+test('tracking codes ignore case, spaces and dashes', () => {
+  assert.equal(normaliseCode(' abcd-efgh 2345 '), 'ABCDEFGH2345');
+  assert.equal(codeFromBytes(new Uint8Array([0, 1, 2, 31, 32]), 5).length, 5);
+});
+
+test('AI reply is read defensively', () => {
+  const ai = parseAiReply('Here: {"category":"payroll","severity":9,"tone":"upset","summary":"s","suggestion":"do x"} thanks');
+  assert.equal(ai.severity, 5);
+  assert.equal(ai.category, 'payroll');
+  assert.throws(() => parseAiReply('no json here'));
+});
