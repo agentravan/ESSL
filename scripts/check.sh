@@ -4,8 +4,8 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 npx tsc --noEmit 2>&1 | head -${1:-40}
 echo "types: exit ${PIPESTATUS[0]}"
-npx tsx --test tests/*.test.ts 2>&1 | grep -aE "^# (tests|pass|fail)|^not ok|^# Subtest|rror:|expected|actual" | grep -aB2 -A6 "not ok" | head -40
-npx tsx --test tests/*.test.ts 2>&1 | grep -aE "^# (tests|pass|fail)" | tr '\n' ' '; echo
+npx tsx --test --test-reporter=tap tests/*.test.ts 2>&1 | grep -aE "^# (tests|pass|fail)|^not ok|^# Subtest|rror:|expected|actual" | grep -aB2 -A6 "not ok" | head -40
+npx tsx --test --test-reporter=tap tests/*.test.ts 2>&1 | grep -aE "^# (tests|pass|fail)" | tr '\n' ' '; echo
 if command -v psql >/dev/null && sudo -n true 2>/dev/null; then
   sudo service postgresql start >/dev/null 2>&1; sleep 1
   sudo -u postgres psql -Atc "alter user postgres password 'pg'" >/dev/null 2>&1

@@ -4,7 +4,8 @@ import {
   aadhaarProblem, accountProblem, ifscProblem, panProblem, parseAmount, parseDateLoose, passwordProblem, verhoeffValid,
 } from '../src/lib/validate';
 import { dmy, inr, longDate, rupeesInWords } from '../src/lib/format';
-import { decryptField, encryptField, generatePassword, hashPassword, verifyPassword } from '../src/lib/crypto';
+import { decryptBytes, decryptField, encryptBytes, encryptField, generatePassword, hashPassword, verifyPassword } from '../src/lib/crypto';
+import { sniffFileType } from '../src/lib/documents';
 
 test('Verhoeff check digit', () => {
   // Reference values from the published Verhoeff examples.
@@ -85,4 +86,18 @@ test('field encryption round trip and tamper detection', () => {
   const parts = enc.split('.');
   parts[3] = Buffer.from('tampered').toString('base64');
   assert.throws(() => decryptField(parts.join('.')));
+});
+
+test('file encryption round trip and file-type sniffing', () => {
+  process.env.DATA_KEY = Buffer.alloc(32, 7).toString('base64');
+  const pdf = Buffer.from('%PDF-1.7 pretend file');
+  const enc = encryptBytes(pdf);
+  assert.ok(!enc.includes(Buffer.from('%PDF')));
+  assert.deepEqual(decryptBytes(enc), pdf);
+  enc[enc.length - 1] ^= 1;
+  assert.throws(() => decryptBytes(enc));
+  assert.equal(sniffFileType(pdf), 'application/pdf');
+  assert.equal(sniffFileType(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0])), 'image/jpeg');
+  assert.equal(sniffFileType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), 'image/png');
+  assert.equal(sniffFileType(Buffer.from('MZ this is a program')), null);
 });

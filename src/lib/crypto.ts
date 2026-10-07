@@ -96,3 +96,18 @@ export function decryptField(stored: string): string {
   decipher.setAuthTag(Buffer.from(tag, 'base64'));
   return Buffer.concat([decipher.update(Buffer.from(ct, 'base64')), decipher.final()]).toString('utf8');
 }
+
+/** Encrypts a file's bytes. Layout: 12-byte IV, 16-byte tag, ciphertext. */
+export function encryptBytes(plain: Buffer): Buffer {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', dataKey(), iv);
+  const ct = Buffer.concat([cipher.update(plain), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), ct]);
+}
+
+export function decryptBytes(stored: Buffer): Buffer {
+  if (stored.length < 29) throw new Error('Unrecognised encrypted file');
+  const decipher = createDecipheriv('aes-256-gcm', dataKey(), stored.subarray(0, 12));
+  decipher.setAuthTag(stored.subarray(12, 28));
+  return Buffer.concat([decipher.update(stored.subarray(28)), decipher.final()]);
+}
